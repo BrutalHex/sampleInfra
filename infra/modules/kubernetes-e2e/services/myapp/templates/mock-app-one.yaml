@@ -1,0 +1,106 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: movies-config
+  namespace: "{{ .Values.app.namespaces}}"
+data:
+  movies.json: |
+    [
+      {"title": "The Shawshank Redemption", "year": 1994},
+      {"title": "The Godfather", "year": 1972},
+      {"title": "The Dark Knight", "year": 2008},
+      {"title": "Pulp Fiction", "year": 1994},
+      {"title": "Forrest Gump", "year": 1994}
+    ]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: one-pvc
+  namespace: "{{ .Values.app.namespaces}}"
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: gp2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-app-one
+  namespace: "{{ .Values.app.namespaces}}"
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: mock-app-one
+  template:
+    metadata:
+      labels:
+        app: mock-app-one
+    spec:
+      containers:
+      - name: mock-app-one
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: movies-volume
+          mountPath: /usr/share/nginx/html/movies.json
+          subPath: movies.json
+        - name: ebs-volume
+          mountPath: /data
+        resources:
+          limits:
+            cpu: "200m"
+            memory: "200Mi"
+          requests:
+            cpu: "200m"
+            memory: "200Mi"
+      volumes:
+      - name: movies-volume
+        configMap:
+          name: movies-config
+      - name: ebs-volume
+        persistentVolumeClaim:
+          claimName: one-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-one
+  namespace: "{{ .Values.app.namespaces}}"
+spec:
+  selector:
+    app: mock-app-one
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mock-app-one
+  namespace: "{{ .Values.app.namespaces}}"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: "{{ .Values.ingress.className }}"
+  rules:
+  - host: "{{ .Values.app.name}}".one."{{ .Values.ingress.url }}"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mock-one
+            port:
+              number: 80
+---
+

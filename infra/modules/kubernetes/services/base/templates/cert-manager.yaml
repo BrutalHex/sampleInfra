@@ -1,0 +1,32 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    # The ACME server URL
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: "{{ .Values.cert.email }}"
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - dns01:
+        route53:
+          region: "{{ .Values.cluster.aws_region }}"
+          hostedZoneID: "{{ .Values.cluster.route53_id }}"
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: "cert-wildcard"
+  namespace: "{{ .Values.cluster.cert_manager_namespace }}"
+spec:
+  secretName: "{{ .Values.domain }}-tls"
+  issuerRef:
+    name: letsencrypt
+    kind: ClusterIssuer
+  commonName: "*.{{ .Values.domain }}"
+  dnsNames:
+  - "*.{{ .Values.domain }}"
+  - "{{ .Values.domain }}"
+---

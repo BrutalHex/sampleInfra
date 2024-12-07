@@ -1,0 +1,63 @@
+# this workflow apllies the changes against AWS and Cluster.
+---
+name: cluster-setup
+
+on:
+  workflow_call:
+    secrets:
+      TERRAFORM_HCL_TEAM_TOKEN:
+        required: true
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    env:
+      TF_TOKEN_app_terraform_io: ${{ secrets.TERRAFORM_HCL_TEAM_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: build image
+        run: |
+          set e
+          echo "this step builds an image, tags it and pushes to the ECR"
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: '1.8.2'  # Specify the Terraform version
+      - name: validate the changes
+        run: |
+          set -e
+          make check
+        continue-on-error: false
+      - name: plan chnages
+        env:
+          # actually uses the image tag, in build process
+          # for demo purposes, i used a dummy image.
+          TF_VAR_app_image: "nginx:latest"
+        run: |
+          set -e
+          make plan
+        continue-on-error: false
+      - name: apply chnages
+        run: |
+          set -e
+          make apply
+        continue-on-error: false
+      - name: Run Go Tests
+        id: test
+        run: |
+          export SERVICE_URL=$(echo "$(terraform -chdir=./infra output -raw app_domain)")
+          echo "Testing service at URL: $SERVICE_URL"
+          echo "from here, we clone "
+        env:
+          GO111MODULE: "on"
+        continue-on-error: false
+      - name: destroy test
+        # it only destroys the e2e test module.
+        run: |
+          set -e
+          make destroy
+        continue-on-error: false

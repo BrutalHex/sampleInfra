@@ -1,0 +1,11 @@
+---
+cluster:
+  cluster_autoscaler_role: null
+  name: null
+  route53_id: null
+  aws_region: null
+  cert_manager_namespace: null
+domain: null
+cert:
+  email: null
+---

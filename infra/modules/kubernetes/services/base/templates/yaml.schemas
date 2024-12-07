@@ -1,0 +1,4 @@
+"yaml.schemas": {
+    "url": "globPattern",
+    "Kubernetes": "*.yaml"
+}

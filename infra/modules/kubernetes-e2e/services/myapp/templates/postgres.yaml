@@ -1,0 +1,98 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-deployment
+  namespace: "{{ .Values.app.namespaces}}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      serviceAccountName: helloaws
+      volumes:
+      - name: ebs-volume
+        persistentVolumeClaim:
+          claimName: postgres-ebs-pvc
+      initContainers:
+      - name: aws-s3-downloader
+        image: amazon/aws-cli:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            BUCKET_NAME=$(echo "$S3_BUCKET_ARN" | awk -F':::' '{print $2}') &&
+            echo "Extracted Bucket Name: $BUCKET_NAME" &&
+            aws s3 cp s3://$BUCKET_NAME/{{ .Values.postgres.backupFile}} /data/backup.sql &&
+            echo "Download complete";
+        volumeMounts:
+        - name: ebs-volume
+          mountPath: /data
+        env:
+        - name: S3_BUCKET_ARN
+          value: "{{ .Values.postgres.backupBucketArn}}" # Replace with the ARN of your bucket
+        - name: AWS_REGION
+          value: us-east-1 # Update to your bucket's region
+      containers:
+      - name: postgres
+        image: postgres:15
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: "{{ .Values.postgres.databaseName}}"
+        - name: POSTGRES_USER
+          value: "{{ .Values.postgres.user}}"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: "{{ .Values.postgres.passwordSecretName}}"
+              key: password
+        volumeMounts:
+        - name: ebs-volume
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "500Mi"
+            cpu: "200m"
+          limits:
+            memory: "500Mi"
+            cpu: "200m"
+        command:
+        - /bin/sh
+        - -c
+        - >
+          psql -U $POSTGRES_USER -d postgres -c "CREATE DATABASE $POSTGRES_DB;" &&
+          psql -U $POSTGRES_USER -d $POSTGRES_DB -f /var/lib/postgresql/data/backup.sql;
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-ebs-pvc
+  namespace: "{{ .Values.app.namespaces}}"
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: gp2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "{{ .Values.postgres.serviceName}}"
+  namespace: "{{ .Values.app.namespaces}}"
+spec:
+  selector:
+    app: postgres
+  ports:
+  - protocol: TCP
+    port: "{{ .Values.postgres.port}}"
+    targetPort: 5432
+  type: ClusterIP

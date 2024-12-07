@@ -1,0 +1,105 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: actors-config
+  namespace: default
+data:
+  actors.json: |
+    [
+      {"name": "Robert De Niro", "age": 79},
+      {"name": "Meryl Streep", "age": 74},
+      {"name": "Leonardo DiCaprio", "age": 49},
+      {"name": "Natalie Portman", "age": 42},
+      {"name": "Denzel Washington", "age": 68}
+    ]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: two-pvc
+  namespace: "{{ .Values.app.namespaces}}"
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: gp2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-app-two
+  namespace: "{{ .Values.app.namespaces}}"
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: mock-app-two
+  template:
+    metadata:
+      labels:
+        app: mock-app-two
+    spec:
+      containers:
+      - name: mock-app-two
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: movies-volume
+          mountPath: /usr/share/nginx/html/movies.json
+          subPath: movies.json
+        - name: ebs-volume
+          mountPath: /data
+        resources:
+          limits:
+            cpu: "200m"
+            memory: "200Mi"
+          requests:
+            cpu: "200m"
+            memory: "200Mi"
+      volumes:
+      - name: movies-volume
+        configMap:
+          name: actors-config
+      - name: ebs-volume
+        persistentVolumeClaim:
+          claimName: two-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-two
+  namespace: "{{ .Values.app.namespaces}}"
+spec:
+  selector:
+    app: mock-app-two
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mock-app-two
+  namespace: "{{ .Values.app.namespaces}}"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: "{{ .Values.ingress.className }}"
+  rules:
+  - host: "{{ .Values.app.name}}".two."{{ .Values.ingress.url }}"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mock-two
+            port:
+              number: 80
+---
