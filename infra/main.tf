@@ -9,20 +9,14 @@ module "app-eks" {
   aws_route53_domain       = var.aws_route53_domain
   aws_s3_bucket_backup_arn = var.aws_s3_bucket_backup_arn
 }
-# makes sure EKS is ready
-resource "time_sleep" "wait_five_minutes" {
-  create_duration = "10m"
-  triggers = {
-    always_run = timestamp() # Changes every time you run `terraform apply`
-  }
-}
+
 
 
 
 
 # "kubernetes-base" module setups the k8s environment
 module "kubernetes-base" {
-  depends_on                                  = [module.app-eks, time_sleep.wait_five_minutes]
+  depends_on                                  = [module.app-eks]
   source                                      = "./modules/kubernetes"
   aws_iam_role_csi_driver_arn                 = module.app-eks.aws_iam_role_csi_driver_arn
   csi_driver_service_account_name             = module.app-eks.csi_driver_service_account_name

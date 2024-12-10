@@ -1,6 +1,12 @@
 
 
-
+# makes sure EKS is ready
+resource "time_sleep" "wait_five_minutes" {
+  create_duration = "10m"
+  triggers = {
+    always_run = timestamp() # Changes every time you run `terraform apply`
+  }
+}
 
 resource "helm_release" "aws_ebs_csi_driver" {
   name       = "aws-ebs-csi-driver"

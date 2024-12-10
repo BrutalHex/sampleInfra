@@ -21,7 +21,3 @@ output "app_domain" {
   value = module.kubernetes-e2e.app_domain
 }
 
-output "timer_complete" {
-  value      = "5-minute timer is complete!"
-  depends_on = [time_sleep.wait_five_minutes]
-}

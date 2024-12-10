@@ -10,7 +10,8 @@ locals {
 
 
 resource "kubernetes_namespace" "namespace" {
-  for_each = toset(local.namespaces)
+  for_each   = toset(local.namespaces)
+  depends_on = [time_sleep.wait_five_minutes]
   lifecycle {
     ignore_changes = [metadata]
   }
